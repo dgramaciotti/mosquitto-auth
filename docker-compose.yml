@@ -7,6 +7,6 @@ services:
       dockerfile: Dockerfile
     container_name: mosquitto-auth
     ports:
-      - "1883:1883"
+      - "42065:42065"
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
