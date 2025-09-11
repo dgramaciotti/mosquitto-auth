@@ -70,7 +70,6 @@ COPY --from=builder /usr/local/bin/mosquitto_passwd /usr/local/bin/
 
 # Copy plugin and config
 COPY --from=builder /src/plugin/build/libauth_plugin.so /mosquitto/plugins/
-COPY mosquitto.conf /mosquitto/config/
 
 RUN ldconfig && chown -R mosquitto:mosquitto /mosquitto
 
