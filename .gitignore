@@ -2,3 +2,5 @@ build
 .vscode
 bin
 .DS_STORE
+tests/env/**
+__pycache__
