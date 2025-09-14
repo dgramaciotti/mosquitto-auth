@@ -13,7 +13,9 @@ You can use `docker` to setup and run, or change configuration and run with [ven
 3. Run the tests with `docker compose run --rm test-runner`
 
 
-## Load Test Report
+## Load Test
+1. Run this test with `docker compose run --rm test-runner`
+
 
 ### Performance Metrics
 - **Average Throughput:** 136.97 msgs/s
