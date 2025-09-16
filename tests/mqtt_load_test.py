@@ -1,4 +1,5 @@
 import os
+import json
 import time
 import threading
 import random
@@ -8,34 +9,35 @@ import paho.mqtt.client as mqtt
 
 
 class MQTTLoadTester:
-    def __init__(self):
+    def __init__(self, settings_file="settings.json"):
+        
         # config from env or defaults
         self.BROKER_HOST = os.getenv("TEST_BROKER_HOST", "mosquitto-auth")
         self.BROKER_PORT = int(os.getenv("TEST_BROKER_PORT", 9001))  # WebSockets port
+        
         self.TOPICS = [f"load/topic{i}" for i in range(5)]
-        self.NUM_USERS = 50
-        self.MESSAGES_PER_USER = 20
-        self.PAYLOAD_SIZE = 1024
-        self.TIMEOUT = 15
-        self.LOG_FILE = "mqtt_load_test_realistic_log.txt"
+        
+        if not os.path.exists(settings_file):
+            raise FileNotFoundError(f"Arquivo {settings_file} não encontrado.")
 
-    def random_payload(self, size=None):
-        """
-        Return a random alphanumeric payload of given size (default: PAYLOAD_SIZE).
-        """
-        if size is None:
-            size = self.PAYLOAD_SIZE
-        return ''.join(random.choices(string.ascii_letters + string.digits, k=size))
+        with open(settings_file, "r", encoding="utf-8") as f:
+            settings = json.load(f)
+
+        self.NUM_USERS = settings.get("NUM_USERS", 50)
+        self.MESSAGES_PER_USER = settings.get("MESSAGES_PER_USER", 20)
+        self.PAYLOAD_SIZE = settings.get("PAYLOAD_SIZE", 1024)
+        self.TIMEOUT = settings.get("TIMEOUT", 15)
+        self.LOG_FILE = settings.get("LOG_FILE", "mqtt_load_test_realistic_log.txt")
+
+        if self.PAYLOAD_SIZE < 0:
+            raise ValueError("PAYLOAD_SIZE must be >= 0")
+
+        # Payload fixo, do tamanho definido
+        self.PAYLOAD = "A" * self.PAYLOAD_SIZE
+        self.PAYLOAD_BYTES = self.PAYLOAD.encode("utf-8")
+
 
     def create_client(self, username, password, messages, connect_timeout=5, sub_timeout=5):
-        """
-        Create an MQTT client and ensure:
-         - it connects (waits for on_connect)
-         - it subscribes to all topics and waits for on_subscribe acks
-
-        Returns the client object. If connection fails the client is returned
-        anyway but with a log entry.
-        """
         # unique client id to avoid collisions when many clients connect quickly
         client_id = f"{username}-{int(time.time()*1000)}-{random.randint(0,9999)}"
         client = mqtt.Client(client_id=client_id, transport="websockets")
