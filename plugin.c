@@ -9,17 +9,29 @@
 int cb_basic_auth(int event, void *event_data, void *user_data);
 int cb_acl_check(int event, void *event_data, void *user_data);
 
-int authenticate_user(const char *username, const char *password, const char *client_id, const char *url);
-int check_acl_permission(const char *username, const char *client_id, const char *topic, int access, const char *url);
+int authenticate_user(const char *username, const char *password, const char *client_id, const char *url, const CURL *curl);
+int check_acl_permission(const char *username, const char *client_id, const char *topic, int access, const char *url, const CURL *curl);
 
 struct plugin_data {
     char *user_auth_url;
     char *acl_auth_url;
+    CURL *curl_handle;
 };
 
 static mosquitto_plugin_id_t *plg_id = NULL;
 
-// Helper function to escape JSON strings
+static CURL *create_handle(struct plugin_data *data){
+    CURL *curl = curl_easy_init();
+    if(!curl) return NULL;
+
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 2000L);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "mosquitto-client");
+
+    return curl;
+}
+
 static char* json_escape_string(const char *input)
 {
     if (!input) return mosquitto_strdup("");
@@ -70,25 +82,32 @@ static char* json_escape_string(const char *input)
 // Helper function to clean up plugin_data
 static void cleanup_plugin_data(struct plugin_data *data)
 {
-    if (data) {
-        if (data->user_auth_url) {
-            mosquitto_free(data->user_auth_url);
-            data->user_auth_url = NULL;
-        }
-        if (data->acl_auth_url) {
-            mosquitto_free(data->acl_auth_url);
-            data->acl_auth_url = NULL;
-        }
-        mosquitto_free(data);
+    if (!data) return;
+
+    if (data->curl_handle) {
+        curl_easy_cleanup(data->curl_handle);
+        data->curl_handle = NULL;
     }
+
+    if (data->user_auth_url) {
+        mosquitto_free(data->user_auth_url);
+        data->user_auth_url = NULL;
+    }
+
+    if (data->acl_auth_url) {
+        mosquitto_free(data->acl_auth_url);
+        data->acl_auth_url = NULL;
+    }
+
+    mosquitto_free(data);
+    
 }
 
 // Does an auth request to the provided urls in the config file
 // Authorization header contains the username as a token (jwt). Password is not used because the acl check
 // doesnt provide the password as an option.
-static int perform_auth_request(const char *url, const char *username, const char *json_body)
+static int perform_auth_request(const char *url, const char *username, const char *json_body, const CURL *curl)
 {
-    CURL *curl;
     CURLcode res;
     long http_code = 0;
     int success = 0;
@@ -98,7 +117,6 @@ static int perform_auth_request(const char *url, const char *username, const cha
         return 0;
     }
 
-    curl = curl_easy_init();
     if (!curl) {
         mosquitto_log_printf(MOSQ_LOG_ERR, "Failed to initialize CURL");
         return 0;
@@ -116,9 +134,10 @@ static int perform_auth_request(const char *url, const char *username, const cha
         return 0;
     }
 
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-    headers = curl_slist_append(headers, "User-Agent: mosquitto-client");
     headers = curl_slist_append(headers, auth_header);
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
     if (!headers) {
         mosquitto_log_printf(MOSQ_LOG_ERR, "Failed to create HTTP headers");
@@ -127,10 +146,7 @@ static int perform_auth_request(const char *url, const char *username, const cha
     }
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
-    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 
     res = curl_easy_perform(curl);
     if (res == CURLE_OK) {
@@ -145,7 +161,6 @@ static int perform_auth_request(const char *url, const char *username, const cha
     }
 
     curl_slist_free_all(headers);
-    curl_easy_cleanup(curl);
 
     return success;
 }
@@ -164,14 +179,29 @@ mosq_plugin_EXPORT int mosquitto_plugin_init(mosquitto_plugin_id_t *identifier, 
         mosquitto_log_printf(MOSQ_LOG_ERR, "Invalid initialization parameters or auth urls not provided.");
         return MOSQ_ERR_INVAL;
     }
+
+    if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
+        mosquitto_log_printf(MOSQ_LOG_ERR, "Failed to initialize CURL globally");
+        return MOSQ_ERR_UNKNOWN;
+    }
     
     data = mosquitto_malloc(sizeof(struct plugin_data));
     if (!data) {
         mosquitto_log_printf(MOSQ_LOG_ERR, "Out of memory allocating plugin data");
+        curl_global_cleanup();
         return MOSQ_ERR_NOMEM;
     }
     
     memset(data, 0, sizeof(struct plugin_data));
+
+    data->curl_handle = create_handle(data);
+    if (!data->curl_handle) {
+        mosquitto_log_printf(MOSQ_LOG_ERR, "Failed to initialize CURL handle");
+        cleanup_plugin_data(data);
+        curl_global_cleanup();
+        return MOSQ_ERR_UNKNOWN;
+    }
+
     *user_data = data;
     
     // Parse configuration options
@@ -182,6 +212,7 @@ mosq_plugin_EXPORT int mosquitto_plugin_init(mosquitto_plugin_id_t *identifier, 
             data->user_auth_url = mosquitto_strdup(options[i].value);
             if (!data->user_auth_url) {
                 mosquitto_log_printf(MOSQ_LOG_ERR, "Out of memory duplicating user_auth_url");
+                curl_global_cleanup();
                 cleanup_plugin_data(data);
                 return MOSQ_ERR_NOMEM;
             }
@@ -189,6 +220,7 @@ mosq_plugin_EXPORT int mosquitto_plugin_init(mosquitto_plugin_id_t *identifier, 
             data->acl_auth_url = mosquitto_strdup(options[i].value);
             if (!data->acl_auth_url) {
                 mosquitto_log_printf(MOSQ_LOG_ERR, "Out of memory duplicating acl_auth_url");
+                curl_global_cleanup();
                 cleanup_plugin_data(data);
                 return MOSQ_ERR_NOMEM;
             }
@@ -213,6 +245,7 @@ mosq_plugin_EXPORT int mosquitto_plugin_init(mosquitto_plugin_id_t *identifier, 
                 break;
         }
         mosquitto_log_printf(MOSQ_LOG_ERR, "Error: %s", error_msg);
+        curl_global_cleanup();
         cleanup_plugin_data(data);
         return rc;
     }
@@ -236,6 +269,7 @@ mosq_plugin_EXPORT int mosquitto_plugin_init(mosquitto_plugin_id_t *identifier, 
         
         // Cleanup: unregister the first callback
         mosquitto_callback_unregister(identifier, MOSQ_EVT_BASIC_AUTH, cb_basic_auth, NULL);
+        curl_global_cleanup();
         cleanup_plugin_data(data);
         return rc;
     }
@@ -254,6 +288,7 @@ mosq_plugin_EXPORT int mosquitto_plugin_cleanup(void *user_data, struct mosquitt
     }
     
     cleanup_plugin_data(data);
+    curl_global_cleanup();
     
     mosquitto_log_printf(MOSQ_LOG_INFO, "mosquitto-auth plugin cleaned up");
     return MOSQ_ERR_SUCCESS;
@@ -270,7 +305,7 @@ int cb_basic_auth(int event, void *event_data, void *user_data)
     struct mosquitto_evt_basic_auth *evt = (struct mosquitto_evt_basic_auth*)event_data;
     struct plugin_data *data = (struct plugin_data*)user_data;
 
-    if (!evt->client) {
+    if (!evt->client || !data->user_auth_url) {
         mosquitto_log_printf(MOSQ_LOG_ERR, "No client in auth event");
         return MOSQ_ERR_AUTH;
     }
@@ -283,7 +318,7 @@ int cb_basic_auth(int event, void *event_data, void *user_data)
                          client_id ? client_id : "NULL",
                          username ? username : "NULL");
 
-    if (authenticate_user(username, password, client_id, data->user_auth_url)) {
+    if (authenticate_user(username, password, client_id, data->user_auth_url, data->curl_handle)) {
         return MOSQ_ERR_SUCCESS;
     } else {
         return MOSQ_ERR_AUTH;
@@ -317,14 +352,14 @@ int cb_acl_check(int event, void *event_data, void *user_data)
                          topic ? topic : "NULL",
                          access);
 
-    if (check_acl_permission(username, client_id, topic, access, data->acl_auth_url)) {
+    if (check_acl_permission(username, client_id, topic, access, data->acl_auth_url, data->curl_handle)) {
         return MOSQ_ERR_SUCCESS;
     } else {
         return MOSQ_ERR_ACL_DENIED;
     }
 }
 
-int authenticate_user(const char *username, const char *password, const char *client_id, const char *url)
+int authenticate_user(const char *username, const char *password, const char *client_id, const char *url, const CURL *curl)
 {
     if (!url) {
         mosquitto_log_printf(MOSQ_LOG_ERR, "No auth URL configured");
@@ -358,10 +393,10 @@ int authenticate_user(const char *username, const char *password, const char *cl
         return 0;
     }
 
-    return perform_auth_request(url, username, json_body);
+    return perform_auth_request(url, username, json_body, curl);
 }
 
-int check_acl_permission(const char *username, const char *client_id, const char *topic, int access, const char *url)
+int check_acl_permission(const char *username, const char *client_id, const char *topic, int access, const char *url, const CURL *curl)
 {
     if (!url) {
         mosquitto_log_printf(MOSQ_LOG_ERR, "No ACL URL configured");
@@ -395,5 +430,5 @@ int check_acl_permission(const char *username, const char *client_id, const char
         return 0;
     }
 
-    return perform_auth_request(url, username, json_body);
+    return perform_auth_request(url, username, json_body, curl);
 }
