@@ -14,7 +14,7 @@ You can use `docker` to setup and run, or change configuration and run with [ven
 
 
 ## Load Test
-1. Run this test with `docker compose run --rm load-test`
+1. Run this test with `docker compose run  test-runner python -u -m pytest -v load/mqtt_load_test.py -rm`
 
 
 ### Performance Metrics
