@@ -1,4 +1,3 @@
-version: "3.9"
 
 services:
   mosquitto-auth:
@@ -26,7 +25,21 @@ services:
       context: .
       dockerfile: Dockerfile   # same image as auth-server, but different command ran
     container_name: test-runner
-    command: pytest -v --maxfail=1 --disable-warnings -q
+    command: python -u -m pytest -v --maxfail=1 --disable-warnings -q
+    volumes:
+      - .:/app   # mount tests so edits rerun without rebuild
+    depends_on:
+      - mosquitto-auth
+      - auth-server
+    networks:
+      - testNetwork
+
+  load-test:
+    build:
+      context: .
+      dockerfile: Dockerfile   # same image as auth-server, but different command ran
+    container_name: test-runner-load-test
+    command: python -u -m pytest mqtt_load_test.py -v --disable-warnings -q
     volumes:
       - .:/app   # mount tests so edits rerun without rebuild
     depends_on:
