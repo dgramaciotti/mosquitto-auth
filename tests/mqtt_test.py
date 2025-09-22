@@ -10,20 +10,33 @@ messages = []
 def on_message(client, userdata, msg):
     messages.append(msg.payload.decode())
 
-def test_mqtt_and_auth():
-    # Connect to Mosquitto
+def create_client(username, password):
     client = mqtt.Client(transport="websockets")
     client.on_message = on_message
-    client.connect(BROKER_HOST, BROKER_PORT, 60)
+    client.username_pw_set(username, password)
+    return client
 
-    client.loop_start()
-    client.subscribe("test/topic")
-    time.sleep(1)
+def test_mqtt_and_auth():
+    clients = []
+    for n in range(5):
+        client = create_client(f"my_username {n}", f"my_password {n}")
+        client.connect(BROKER_HOST, BROKER_PORT, 60)
+        clients.append(client)
+        client.loop_start()
+        client.subscribe("test/topic")
+   
+    time.sleep(0.5)
 
-    client.publish("test/topic", "hello")
-    time.sleep(1)
+    for n, client in enumerate(clients):
+        client.publish("test/topic", f"hello from {n}")
 
-    client.loop_stop()
-    client.disconnect()
+    time.sleep(0.5)
 
-    assert "hello" in messages
+    for client in clients:
+        client.loop_stop()
+        client.disconnect()
+        
+    for n in range(5):
+        expected_message = f"hello from {n}"
+        assert expected_message in messages, f"Message '{expected_message}' not found in received messages."
+    
