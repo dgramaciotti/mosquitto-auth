@@ -26,6 +26,8 @@ services:
       dockerfile: Dockerfile   # same image as auth-server, but different command ran
     container_name: test-runner
     command: python -u -m pytest -v --maxfail=1 --disable-warnings -q
+    ports:
+      - 8089:8089
     volumes:
       - .:/app   # mount tests so edits rerun without rebuild
     depends_on:

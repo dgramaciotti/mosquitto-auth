@@ -1,6 +1,0 @@
-{
-    "NUM_USERS": 50,
-    "MESSAGES_PER_USER": 20,
-    "PAYLOAD_SIZE": 1024,
-    "TIMEOUT": 15
-}
