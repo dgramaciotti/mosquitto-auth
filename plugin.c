@@ -9,8 +9,8 @@
 int cb_basic_auth(int event, void *event_data, void *user_data);
 int cb_acl_check(int event, void *event_data, void *user_data);
 
-int authenticate_user(const char *username, const char *password, const char *client_id, const char *url, const CURL *curl);
-int check_acl_permission(const char *username, const char *client_id, const char *topic, int access, const char *url, const CURL *curl);
+int authenticate_user(const char *username, const char *password, const char *client_id, const char *url, CURL *curl);
+int check_acl_permission(const char *username, const char *client_id, const char *topic, int access, const char *url, CURL *curl);
 
 struct plugin_data {
     char *user_auth_url;
@@ -106,7 +106,7 @@ static void cleanup_plugin_data(struct plugin_data *data)
 // Does an auth request to the provided urls in the config file
 // Authorization header contains the username as a token (jwt). Password is not used because the acl check
 // doesnt provide the password as an option.
-static int perform_auth_request(const char *url, const char *username, const char *json_body, const CURL *curl)
+static int perform_auth_request(const char *url, const char *username, const char *json_body, CURL *curl)
 {
     CURLcode res;
     long http_code = 0;
@@ -123,6 +123,7 @@ static int perform_auth_request(const char *url, const char *username, const cha
     }
 
     struct curl_slist *headers = NULL;
+    // Since we're using token based auth, header size can be arbitrarily limited
     char auth_header[1024];
     
     int header_len = snprintf(auth_header, sizeof(auth_header), 
@@ -199,7 +200,7 @@ mosq_plugin_EXPORT int mosquitto_plugin_init(mosquitto_plugin_id_t *identifier, 
         mosquitto_log_printf(MOSQ_LOG_ERR, "Failed to initialize CURL handle");
         cleanup_plugin_data(data);
         curl_global_cleanup();
-        return MOSQ_ERR_UNKNOWN;
+        return MOSQ_ERR_NOMEM;
     }
 
     *user_data = data;
@@ -359,7 +360,7 @@ int cb_acl_check(int event, void *event_data, void *user_data)
     }
 }
 
-int authenticate_user(const char *username, const char *password, const char *client_id, const char *url, const CURL *curl)
+int authenticate_user(const char *username, const char *password, const char *client_id, const char *url, CURL *curl)
 {
     if (!url) {
         mosquitto_log_printf(MOSQ_LOG_ERR, "No auth URL configured");
@@ -396,7 +397,7 @@ int authenticate_user(const char *username, const char *password, const char *cl
     return perform_auth_request(url, username, json_body, curl);
 }
 
-int check_acl_permission(const char *username, const char *client_id, const char *topic, int access, const char *url, const CURL *curl)
+int check_acl_permission(const char *username, const char *client_id, const char *topic, int access, const char *url, CURL *curl)
 {
     if (!url) {
         mosquitto_log_printf(MOSQ_LOG_ERR, "No ACL URL configured");
