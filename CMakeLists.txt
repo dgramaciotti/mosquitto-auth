@@ -13,17 +13,11 @@ else()
             /usr/include
             /usr/local/include
             /opt/homebrew/include
-            ${CMAKE_SOURCE_DIR}/../mosquitto/include
     )
-endif()
-
-if (NOT MOSQUITTO_INCLUDE_DIR)
-    message(FATAL_ERROR "Could not find mosquitto headers. Please set -DMOSQUITTO_INCLUDE_DIR=/path/to/mosquitto/include")
 endif()
 
 # Find libcurl
 find_package(CURL REQUIRED)
-
 # Add plugin as shared module
 add_library(auth_plugin MODULE plugin.c)
 
