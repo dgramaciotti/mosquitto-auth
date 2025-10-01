@@ -21,6 +21,8 @@ find_package(CURL REQUIRED)
 # Add plugin as shared module
 add_library(auth_plugin MODULE plugin.c)
 
+target_compile_options(auth_plugin PRIVATE -Wall -Wextra -pedantic)
+
 target_include_directories(auth_plugin PRIVATE
     ${MOSQUITTO_INCLUDE_DIR}
     ${CURL_INCLUDE_DIRS}

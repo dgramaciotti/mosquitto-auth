@@ -20,7 +20,7 @@ struct plugin_data {
 
 static mosquitto_plugin_id_t *plg_id = NULL;
 
-static CURL *create_handle(struct plugin_data *data){
+static CURL *create_handle(void){
     CURL *curl = curl_easy_init();
     if(!curl) return NULL;
 
@@ -129,7 +129,7 @@ static int perform_auth_request(const char *url, const char *username, const cha
     int header_len = snprintf(auth_header, sizeof(auth_header), 
                              "Authorization: Bearer %s", username ? username : "");
     
-    if (header_len >= sizeof(auth_header)) {
+    if ((size_t)header_len >= sizeof(auth_header)) {
         mosquitto_log_printf(MOSQ_LOG_ERR, "Username too long for auth header.");
         curl_easy_cleanup(curl);
         return 0;
@@ -168,6 +168,8 @@ static int perform_auth_request(const char *url, const char *username, const cha
 
 mosq_plugin_EXPORT int mosquitto_plugin_version(int supported_version_count, const int *supported_versions)
 {
+    (void) supported_version_count;
+    (void) supported_versions;
     return 5; // Return 5 for v5 interface
 }
 
@@ -195,7 +197,7 @@ mosq_plugin_EXPORT int mosquitto_plugin_init(mosquitto_plugin_id_t *identifier, 
     
     memset(data, 0, sizeof(struct plugin_data));
 
-    data->curl_handle = create_handle(data);
+    data->curl_handle = create_handle();
     if (!data->curl_handle) {
         mosquitto_log_printf(MOSQ_LOG_ERR, "Failed to initialize CURL handle");
         cleanup_plugin_data(data);
@@ -281,6 +283,8 @@ mosq_plugin_EXPORT int mosquitto_plugin_init(mosquitto_plugin_id_t *identifier, 
 
 mosq_plugin_EXPORT int mosquitto_plugin_cleanup(void *user_data, struct mosquitto_opt *options, int option_count)
 {
+    (void) options;
+    (void) option_count;
     struct plugin_data *data = (struct plugin_data*)user_data;
     
     if (plg_id) {
@@ -298,6 +302,7 @@ mosq_plugin_EXPORT int mosquitto_plugin_cleanup(void *user_data, struct mosquitt
 // Improved callback for MQTT auth
 int cb_basic_auth(int event, void *event_data, void *user_data)
 {
+    (void) event;
     if (!event_data || !user_data) {
         mosquitto_log_printf(MOSQ_LOG_ERR, "Invalid parameters in basic auth callback");
         return MOSQ_ERR_AUTH;
@@ -329,6 +334,7 @@ int cb_basic_auth(int event, void *event_data, void *user_data)
 // Callback: Access Control List (ACL) check
 int cb_acl_check(int event, void *event_data, void *user_data)
 {
+    (void) event;
     if (!event_data || !user_data) {
         mosquitto_log_printf(MOSQ_LOG_ERR, "Invalid parameters in ACL check callback");
         return MOSQ_ERR_ACL_DENIED;
@@ -384,12 +390,20 @@ int authenticate_user(const char *username, const char *password, const char *cl
     int json_len = snprintf(json_body, sizeof(json_body),
                            "{ \"username\": \"%s\", \"password\": \"%s\", \"client_id\": \"%s\" }",
                            escaped_username, escaped_password, escaped_client_id);
+
+    if (json_len <= 0){
+        mosquitto_log_printf(MOSQ_LOG_ERR, "Error formatting JSON body for User auth");
+        mosquitto_free(escaped_username);
+        mosquitto_free(escaped_client_id);
+        mosquitto_free(escaped_password);
+        return 0;
+    }
     
     mosquitto_free(escaped_username);
     mosquitto_free(escaped_password);
     mosquitto_free(escaped_client_id);
     
-    if (json_len >= sizeof(json_body)) {
+    if ((size_t)json_len >= sizeof(json_body)) {
         mosquitto_log_printf(MOSQ_LOG_ERR, "JSON body too large for auth request");
         return 0;
     }
@@ -421,12 +435,20 @@ int check_acl_permission(const char *username, const char *client_id, const char
     int json_len = snprintf(json_body, sizeof(json_body),
                            "{ \"username\": \"%s\", \"client_id\": \"%s\", \"topic\": \"%s\", \"access\": %d }",
                            escaped_username, escaped_client_id, escaped_topic, access);
+
+    if (json_len <= 0){
+        mosquitto_log_printf(MOSQ_LOG_ERR, "Error formatting JSON body for ACL");
+        mosquitto_free(escaped_username);
+        mosquitto_free(escaped_client_id);
+        mosquitto_free(escaped_topic);
+        return 0;
+    }
     
     mosquitto_free(escaped_username);
     mosquitto_free(escaped_client_id);
     mosquitto_free(escaped_topic);
     
-    if (json_len >= sizeof(json_body)) {
+    if ((size_t)json_len >= sizeof(json_body)) {
         mosquitto_log_printf(MOSQ_LOG_ERR, "JSON body too large for ACL request");
         return 0;
     }
