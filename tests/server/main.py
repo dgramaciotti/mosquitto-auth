@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import FastAPI, Request, Response, status
 import logging
 from pydantic import BaseModel
@@ -22,10 +23,10 @@ logging.basicConfig(
 app = FastAPI()
 
 def valid_user(username: str, password: str, client_id: str):
-    return username == ALLOWED_USERNAME and password == ALLOWED_PASSWORD
+    return ALLOWED_USERNAME in username and password == ALLOWED_PASSWORD
 
 def valid_acl(username: str, topic: str, client_id=None, access=None):
-    return username == ALLOWED_USERNAME and topic == ALLOWED_TOPIC
+    return ALLOWED_USERNAME in username and ALLOWED_TOPIC in topic
 
 ALLOWED_USERNAME="testuser"
 ALLOWED_TOPIC="test/topic"
@@ -36,6 +37,7 @@ ALLOWED_ACCESS=1
 @app.post("/user/me")
 async def auth(payload: UserCheckPayload, response: Response):
     logging.debug(f"user/me payload: {payload}")
+    await asyncio.sleep(0.01)
     if valid_user(payload.username, payload.password, payload.client_id):
         return {"result": "allow"}
     else:
@@ -45,6 +47,7 @@ async def auth(payload: UserCheckPayload, response: Response):
 @app.post("/user/me/aclcheck")
 async def aclcheck(payload: ACLCheckPayload, response: Response):
     logging.debug(f"user/me/aclcheck payload: {payload}")
+    await asyncio.sleep(0.01)
     if valid_acl(payload.username, payload.topic, payload.client_id, payload.access):
         return {"result": "allow"}
     else:
