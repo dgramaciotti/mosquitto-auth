@@ -4,13 +4,15 @@ services:
     build:
       context: ../
       dockerfile: Dockerfile
-    container_name: mosquitto-auth
+    # deploy:
+    #   replicas: 2
     ports:
       - "9001:9001"
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
     networks:
       - testNetwork
+    
   auth-server:
     build:
       context: .

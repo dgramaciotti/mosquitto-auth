@@ -14,7 +14,7 @@ You can use `docker` to setup and run, or change configuration and run with [ven
 
 
 ## Load Test
-1. Run this test with `docker compose run  test-runner python -u -m pytest -v load/mqtt_load_test.py -rm`
+1. Run a load test with locust using `docker compose run --rm -p 8089:8089 test-runner locust -f load/mqtt_load_test.py`
 
 
 ### Performance Metrics

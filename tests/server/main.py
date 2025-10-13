@@ -1,9 +1,11 @@
+import asyncio
 from fastapi import FastAPI, Request, Response, status
 
 app = FastAPI()
 
 @app.post("/user/me")
 async def auth(request: Request, response: Response):
+    await asyncio.sleep(0.01)
     data = await request.json()
     return {"result": "allow"}
     # response.status_code = status.HTTP_403_FORBIDDEN
@@ -11,6 +13,7 @@ async def auth(request: Request, response: Response):
 
 @app.post("/user/me/aclcheck")
 async def aclcheck(request: Request, response: Response):
+    await asyncio.sleep(0.01)
     data = await request.json()
     return {"result": "allow"}
     # response.status_code = status.HTTP_403_FORBIDDEN
