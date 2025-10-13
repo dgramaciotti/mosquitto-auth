@@ -48,7 +48,7 @@ class MqttTask(TaskSet):
         if not self.client.is_connected():
             return
         self.start_time = time.time()
-        topic = f"{self.client._client_id}devices/readings/mydevice"
+        topic = f"{self.client._client_id}/test/topic"
         msg_id = str(uuid.uuid4())
         payload = f"{msg_id}:Device-{self.client._client_id}"
         MQTTMessageInfo = self.client.publish(topic,payload,qos=2, retain=True)
@@ -74,6 +74,7 @@ class MQTTLocust(User):
         increment()
         client_name = f"Device-{COUNTClient}"
         self.client = mqtt.Client(transport="websockets", client_id=client_name, protocol=mqtt.MQTTv5, callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
+        self.client.username_pw_set(f"testuser-{client_name}", "testpassword")
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = self.on_disconnect
         self.client.on_publish = self.on_publish
@@ -92,7 +93,7 @@ class MQTTLocust(User):
             exception=Exception(f"Connection failed with reason_code={reason_code}")
             )
          else:
-            topic = f"{self.client._client_id}devices/readings/mydevice"
+            topic = f"{self.client._client_id}/test/topic"
             self.client.subscribe(topic)
             fire_locust_success(
                 request_type=REQUEST_TYPE,

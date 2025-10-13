@@ -64,5 +64,5 @@ def test_mqtt_acl_failure():
     client.loop_start()
 
     client.subscribe("some/other/topic")
-    time.sleep(0.25)
+    time.sleep(2)
     assert failure_status

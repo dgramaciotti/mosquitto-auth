@@ -23,10 +23,10 @@ logging.basicConfig(
 app = FastAPI()
 
 def valid_user(username: str, password: str, client_id: str):
-    return username == ALLOWED_USERNAME and password == ALLOWED_PASSWORD
+    return ALLOWED_USERNAME in username and password == ALLOWED_PASSWORD
 
 def valid_acl(username: str, topic: str, client_id=None, access=None):
-    return username == ALLOWED_USERNAME and topic == ALLOWED_TOPIC
+    return ALLOWED_USERNAME in username and ALLOWED_TOPIC in topic
 
 ALLOWED_USERNAME="testuser"
 ALLOWED_TOPIC="test/topic"
