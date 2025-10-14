@@ -33,11 +33,12 @@ ALLOWED_TOPIC="test/topic"
 ALLOWED_USERID=""
 ALLOWED_PASSWORD="testpassword"
 ALLOWED_ACCESS=1
+RESPONSE_MOCKED_DELAY=0.1
 
 @app.post("/user/me")
 async def auth(payload: UserCheckPayload, response: Response):
     logging.debug(f"user/me payload: {payload}")
-    await asyncio.sleep(0.01)
+    await asyncio.sleep(RESPONSE_MOCKED_DELAY)
     if valid_user(payload.username, payload.password, payload.client_id):
         return {"result": "allow"}
     else:
@@ -47,7 +48,7 @@ async def auth(payload: UserCheckPayload, response: Response):
 @app.post("/user/me/aclcheck")
 async def aclcheck(payload: ACLCheckPayload, response: Response):
     logging.debug(f"user/me/aclcheck payload: {payload}")
-    await asyncio.sleep(0.01)
+    await asyncio.sleep(RESPONSE_MOCKED_DELAY)
     if valid_acl(payload.username, payload.topic, payload.client_id, payload.access):
         return {"result": "allow"}
     else:

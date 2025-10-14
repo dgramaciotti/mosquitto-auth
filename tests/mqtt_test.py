@@ -4,8 +4,8 @@ import paho.mqtt.client as mqtt
 
 from server.main import ALLOWED_PASSWORD, ALLOWED_TOPIC, ALLOWED_USERNAME
 
-BROKER_HOST = os.getenv("TEST_BROKER_HOST", "mosquitto-auth")
-BROKER_PORT = os.getenv("TEST_BROKER_PORT", 9001)
+BROKER_HOST = os.getenv("TEST_BROKER_HOST", "nginx")
+BROKER_PORT = os.getenv("TEST_BROKER_PORT", 80)
 
 messages = []
 

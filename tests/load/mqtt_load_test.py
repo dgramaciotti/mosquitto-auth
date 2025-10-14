@@ -4,8 +4,8 @@ import paho.mqtt.client as mqtt
 import time
 
 COUNTClient = 0
-broker_address="mosquitto-auth"
-broker_port = 9001
+broker_address="nginx"
+broker_port = 80
 REQUEST_TYPE = 'MQTT'
 PUBLISH_TIMEOUT = 10000
 PUBLISH_MAX_DELAY=5
